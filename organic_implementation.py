@@ -590,7 +590,7 @@ if __name__ == "__main__":
     yield_types = stats["yield_types"]
 
     selected = {k: yield_types[k] for k in ['Organic' ,'Local']}
-    #plot_cdf(selected, save_as="empirical_cdf")
+    plot_cdf(selected, save_as="empirical_cdf")
 
     # Example usage for 1.1 E[P]
     price_multipliers = [1, 1, 1, 1]
