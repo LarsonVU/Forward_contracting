@@ -90,8 +90,11 @@ def compute_active_set(covariance_matrix, E_Y, m, r_values, verbose=True):
     active_set_r = set()  # Set for r_i constraints
     active_set_n = set()  # Set for n_i constraints
     iter = 0
-    while iter <10:
+    while True:
         iter += 1
+        if iter>100:
+            print("The algorithm cycles, returning infeasible, make sure the covariance matrix is of full rank")
+            return None, None, None, None, None
         if verbose == True:
             shown_indices_r = [x + 1 for x in active_set_r]
             shown_indices_n = [x + 1 for x in active_set_n]
