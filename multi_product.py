@@ -11,8 +11,9 @@ def compute_expectation(v, E_Y):
 
 def compute_lambda_mu(E_Y, covariance_matrix, beta, m):
     sigma_inv = np.linalg.inv(covariance_matrix)
-    A = np.vstack([E_Y, beta])
-    A_sigma_inv = A @ sigma_inv @ A.T
+    A = np.vstack([E_Y, beta]).T
+
+    A_sigma_inv = A.T @ sigma_inv @ A
     rhs = np.array([m, 1])
     lambda_mu = 2 * np.linalg.inv(A_sigma_inv) @ rhs
     return lambda_mu
@@ -45,7 +46,7 @@ def compute_lambda_mu_given_v(v, E_Y, covariance_matrix, beta):
 def compute_v_unconstrained(covariance_matrix, beta):
     sigma_inv = np.linalg.inv(covariance_matrix)
     numerator = np.dot(beta, sigma_inv)
-    denominator = np.dot(np.dot(beta, sigma_inv), np.transpose(beta))
+    denominator = np.dot(np.dot(np.transpose(beta), sigma_inv), beta)
     v = numerator / denominator
     return v
 
@@ -57,7 +58,7 @@ def compute_v_constrained(E_Y, covariance_matrix, beta, lambda_mu):
     # Form the matrix [E[Z], beta]
     ez_beta = np.vstack([E_Y, beta])
     # Compute w
-    v = 0.5 * (lm_vec @ ez_beta) @ sigma_inv
+    v = 0.5 *  sigma_inv @ ez_beta.T  @ lm_vec 
     return v
 
 def compute_given_active_constraints(E_Y, covariance_matrix, active_set, m):
@@ -131,8 +132,12 @@ def compute_active_set(covariance_matrix, E_Y, m, verbose=True):
     
     active_set = set() #set(i for i in range(total_components) if v_start[i] == 0)  # Start with the first forward contract active
     iter =0
-    while iter<20:
-        iter+=1
+    while True:
+        iter += 1
+        if iter>100:
+            print("The algorithm cycles, returning infeasible, make sure the covariance matrix is of full rank")
+            return None, None, None, None, None
+        
         if verbose == True:
             shown_indices = [x + 1 for x in active_set]
             print(f"Current active set: {shown_indices}")
