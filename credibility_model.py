@@ -13,7 +13,7 @@ def compute_expectation(v, E_Y):
 
 def compute_langrangian(covariance_matrix, C_i, c_i):
     sigma_inv = np.linalg.inv(covariance_matrix)
-    lambda_ = -2 * c_i @ np.linalg.inv(C_i @ sigma_inv @ C_i.T)
+    lambda_ = -2 * np.linalg.inv(C_i @ sigma_inv @ C_i.T) @ c_i.T
     return lambda_
 
 def compute_v_given_C(covariance_matrix, C_i, c_i):
@@ -95,6 +95,7 @@ def compute_active_set(covariance_matrix, E_Y, m, r_values, verbose=True):
         if iter>100:
             print("The algorithm cycles, returning infeasible, make sure the covariance matrix is of full rank")
             return None, None, None, None, None
+        
         if verbose == True:
             shown_indices_r = [x + 1 for x in active_set_r]
             shown_indices_n = [x + 1 for x in active_set_n]
@@ -420,6 +421,67 @@ def compute_r_values(yield_types, alphas, verbose=False):
             print(f"{crop}: {r}")
     return r_values
 
+def compute_fill_rate(yield_types, r_values, verbose = True):
+    """
+    Compute the average fill rate (percentage of contract fulfilled) for each crop,
+    and the overall average fulfillment percentage across all crops.
+
+    Args:
+        yield_types (dict): Dictionary of crop names to yield Series.
+        r_values (list): List of contract quantities for each crop.
+        verbose (bool): If True, print fill rates.
+
+    Returns:
+        fill_rates (list): List of fill rates (fractions) for each crop.
+        avg_fill_percentage (float): Average fulfillment percentage across all crops.
+    """
+    fill_rates = []
+    for (crop, data), r in zip(yield_types.items(), r_values):
+        # For each observation, fulfillment rate is min(yield/r, 1)
+        fulfillment = np.minimum(data / r, 1)
+        fill_rate = np.mean(fulfillment)
+        fill_rates.append(fill_rate)
+        if verbose:
+            print(f"Average fill rate for {crop} at r={r:.2f}: {fill_rate:.3%}")
+    avg_fill_percentage = np.mean(fill_rates) * 100
+    if verbose:
+        print(f"Average fulfillment percentage across all crops: {avg_fill_percentage:.2f}%")
+    return fill_rates, avg_fill_percentage
+
+def compute_average_fill_rate_over_a(yield_types, steps=1000, label =  ["Improved", "Hybrid", "Local"], verbose=False,  name  = "fill_percentage"):
+    """
+    Computes the average fill rate for a range of alpha values in [0, 1].
+
+    Args:
+        yield_types (dict): Dictionary of crop names to yield Series.
+        steps (int): Number of alpha values to evaluate between 0 and 1 (inclusive).
+        verbose (bool): If True, print fill rates for each alpha.
+
+    Returns:
+        alphas (list): List of alpha values used.
+        avg_fill_percentages (list): List of average fill percentages for each alpha.
+    """
+    alphas = np.linspace(0, 1, steps)
+    fill_percentages = []
+    for a in alphas:
+        alpha_list = [a] * len(yield_types)
+        r_values = compute_r_values(yield_types, alpha_list, verbose=False)
+        fill_rates, _ = compute_fill_rate(yield_types, r_values, verbose=False)
+        fill_percentages.append(fill_rates)
+
+    # Plotting
+    plt.figure(figsize=(10, 6))
+    plt.plot(alphas, fill_percentages, label =label)
+    plt.xlabel(r"Credibility level $a$")
+    plt.ylabel("Fill Rate (%)")
+    plt.title("Fill rate per credibility level")
+    plt.grid()
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(f"Figures/{name}.png", dpi =300)
+    plt.show()
+    return alphas, fill_percentages
+
 if __name__ == "__main__": 
     stats = collect_crop_statistics()
     covariance_matrix = stats["covariance_matrix"]
@@ -430,19 +492,22 @@ if __name__ == "__main__":
     yield_types = stats["yield_types"]
 
     # Example usage for 1.1 E[P]
-    price_multipliers = [1, 1, 1]
+    price_multipliers = [1.1, 1.1, 1.1]
     E_Y = compute_E_Y(mean_prices, PQ_values, price_multipliers)
+    compute_average_fill_rate_over_a(yield_types)
 
-    alphas = [0.8, 0.8, 0.8]  # as defined above
+    alphas = [0.95, 0.95, 0.95] # as defined above
     r_values = compute_r_values(yield_types, alphas, verbose=True)
+    compute_fill_rate(yield_types, r_values)
     active_set, v, expected_value, variance, lambda_ = compute_active_set(covariance_matrix, E_Y, 1100, r_values)
     print()
 
     v_values1, variances1, expectations1 = compute_frontier(2000, E_Y, covariance_matrix, r_values)
     plot_planted_and_forward_side_by_side([i for i in range(2000)], v_values1, len(E_Y) // 2, mean_Q, folder="Figures/case1")
 
-    alphas = [0.5, 0.5, 0.5]  # as defined above
+    alphas = [0.80, 0.80, 0.80]   # as defined above
     r_values = compute_r_values(yield_types, alphas, verbose=True)
+    compute_fill_rate(yield_types, r_values)
     active_set, v, expected_value, variance, lambda_ = compute_active_set(covariance_matrix, E_Y, 1100, r_values)
     print()
 
@@ -450,8 +515,9 @@ if __name__ == "__main__":
     plot_planted_and_forward_side_by_side([i for i in range(2000)], v_values2, len(E_Y) // 2, mean_Q, folder="Figures/case2")
 
 
-    alphas = [0, 0, 0]  # as defined above
+    alphas = [0.5, 0.5, 0.5]  # as defined above
     r_values = compute_r_values(yield_types, alphas, verbose=True)
+    compute_fill_rate(yield_types, r_values)
     active_set, v, expected_value, variance, lambda_ = compute_active_set(covariance_matrix, E_Y, 1100, r_values)
     print()
 
@@ -460,7 +526,7 @@ if __name__ == "__main__":
     
     expectations = [expectations1, expectations2, expectations3]
     variances = [variances1, variances2, variances3]
-    labels = [r'$a = 0.8$', r'$a = 0.5$', r'$a = 0$']
+    labels = [r'$a = 0.95$', r'$a = 0.8$', r'$a = 0.5$']
 
     plot_frontier(expectations, variances,folder="Figures/comparison", labels=labels)
 
